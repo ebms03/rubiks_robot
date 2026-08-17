@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = ["protocol", "desktop", "arduino", "solver_2x2"]
+
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+
+[profile.release.package.arduino]
+opt-level = "s" 
+codegen-units = 1
+
+[profile.test]
+opt-level = 3
+debug = true

@@ -1,0 +1,15 @@
+[package]
+name = "solver_2x2"
+version = "0.1.0"
+edition = "2024"
+
+[dev-dependencies]
+rand = "0.10.2"
+rustc-hash = "2.1.3"
+
+[build-dependencies]
+rustc-hash = "2.1.3"
+
+[dependencies]
+rustc-hash = "2.1.3"
+

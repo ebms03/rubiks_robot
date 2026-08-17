@@ -1,0 +1,31 @@
+[package]
+name = "desktop"
+version.workspace = true
+edition.workspace = true
+default-run = "main"
+
+[[bin]]
+name = "main"
+path = "src/main.rs"
+
+
+[[bin]]
+name = "build_table"
+path = "src/build_table.rs"
+
+
+[dependencies]
+solver_2x2 = { path = "../solver_2x2" }
+protocol = { path = "../protocol" }
+
+clap = { version = "4.6.5", features = ["derive"] }
+crossbeam-channel = "0.5.16"
+eframe = "0.35.0"
+enum-map = { version = "3.1.0", features = ["serde"] }
+opencv = "0.100.1"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+serialport = "4.9.0"
+strum = { version = "0.28.0", features = ["derive"] }
+env_logger = "0.11.11"
+log = "0.4.33"

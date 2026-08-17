@@ -1,0 +1,12 @@
+[package]
+name = "protocol"
+version.workspace = true
+edition.workspace = true
+
+[features]
+default = []
+alloc = []   # if you ever need Vec/String
+
+[dependencies]
+flat_enum = "0.1.1"
+num_enum = "0.7.6"
