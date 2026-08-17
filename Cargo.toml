@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["protocol", "desktop", "arduino", "solver_2x2"]
+members = ["protocol", "desktop", "esp", "solver_2x2"]
 
 
 [workspace.package]
@@ -11,8 +11,8 @@ edition = "2024"
 opt-level = 3
 lto = "thin"
 
-[profile.release.package.arduino]
-opt-level = "s" 
+[profile.release.package.esp]
+opt-level = "s"
 codegen-units = 1
 
 [profile.test]

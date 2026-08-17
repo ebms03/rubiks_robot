@@ -270,10 +270,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "arduino"
-version = "0.1.0"
-
-[[package]]
 name = "arrayref"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1264,6 +1260,10 @@ name = "error-code"
 version = "3.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dea2df4cf52843e0452895c455a1a2cfbb842a1e7329671acf418fdc53ed4c59"
+
+[[package]]
+name = "esp"
+version = "0.1.0"
 
 [[package]]
 name = "euclid"
