@@ -23,7 +23,6 @@ pub mod assembler;
 pub mod cube;
 pub mod solver;
 
-
 #[cfg(test)]
 mod assembler_tests;
 #[cfg(test)]

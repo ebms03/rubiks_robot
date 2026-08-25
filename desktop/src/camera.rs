@@ -2,8 +2,8 @@ use crossbeam_channel::Sender;
 use opencv::{core, prelude::*, videoio};
 use std::thread;
 
-
-pub const DEFAULT_STREAM: &'static str = "https://10.0.0.7:8080/video";
+// pub const DEFAULT_STREAM: &'static str = "https://10.0.0.7:8080/video";
+pub const DEFAULT_STREAM: &'static str = "https://192.168.0.143:8080/video";
 #[derive(Debug)]
 pub enum CameraConfig {
     Webcam(i32),

@@ -1,2 +1,4 @@
+/.embuild
+/.vscode
 /target
 solver_table.bin

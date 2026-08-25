@@ -98,3 +98,17 @@ fn distance_squared(a: [f32; 3], b: [f32; 3]) -> f32 {
     let dot = diff_sq.iter().sum();
     dot
 }
+
+impl Into<solver_2x2::assembler::Color> for ColorClass {
+    fn into(self) -> solver_2x2::assembler::Color {
+        use solver_2x2::assembler::Color;
+        match self {
+            ColorClass::White => Color::White,
+            ColorClass::Yellow => Color::Yellow,
+            ColorClass::Red => Color::Red,
+            ColorClass::Orange => Color::Orange,
+            ColorClass::Blue => Color::Blue,
+            ColorClass::Green => Color::Green,
+        }
+    }
+}

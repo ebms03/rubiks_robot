@@ -2,21 +2,22 @@ use std::{
     collections::VecDeque,
     sync::{
         Arc,
-        atomic::{self, AtomicBool},
+        atomic::{self, AtomicBool, Ordering::SeqCst},
     },
-    thread::JoinHandle,
+    time::{Duration, Instant},
 };
 
 use crossbeam_channel::{Receiver, Sender, bounded, unbounded};
 use eframe::egui;
 use opencv::{core, imgproc, prelude::*};
-use protocol::DesktopToArduinoPacket;
+use protocol::DesktopToEspPacket;
+use solver_2x2::cube::{self, Axis, Direction, Layer, Rotation, Twist};
 use strum::IntoEnumIterator;
 
 use crate::{
     calibration::{CalibrationData, ColorClass, Location},
     camera::{self, CameraConfig},
-    robot::{self, RobotCommand},
+    robot::{self},
 };
 
 const CALIBRATION_PATH: &str = "calibration.json";
@@ -29,20 +30,30 @@ enum OptionalCalibratable {
 
 #[derive(Debug, Clone, Copy)]
 enum Action {
-    Move(protocol::Move),
+    Command(protocol::DesktopToEspPacket),
+    Wait(Duration),
     CaptureColors,
 }
 
 impl Action {
     const CAPTURE_FACES: &[Self] = &[
         Self::CaptureColors,
-        Self::Move(protocol::Move::Y),
+        Self::Command(protocol::DesktopToEspPacket::Y),
+        Self::Wait(Duration::from_millis(500)),
         Self::CaptureColors,
-        Self::Move(protocol::Move::Y),
+        Self::Command(protocol::DesktopToEspPacket::Y),
+        Self::Wait(Duration::from_millis(500)),
         Self::CaptureColors,
-        Self::Move(protocol::Move::Y),
+        Self::Command(protocol::DesktopToEspPacket::Y),
+        Self::Wait(Duration::from_millis(500)),
         Self::CaptureColors,
-        Self::Move(protocol::Move::Y),
+        Self::Command(protocol::DesktopToEspPacket::Y),
+    ];
+    const SHOWCASE_SOLVED: &[Self] = &[
+        Self::Command(protocol::DesktopToEspPacket::Y),
+        Self::Command(protocol::DesktopToEspPacket::Y),
+        Self::Command(protocol::DesktopToEspPacket::Y),
+        Self::Command(protocol::DesktopToEspPacket::Y),
     ];
 }
 
@@ -51,7 +62,7 @@ pub struct App {
     texture: Option<egui::TextureHandle>,
     img_size: egui::Vec2,
 
-    robot_command_tx: Sender<RobotCommand>,
+    robot_command_tx: Sender<DesktopToEspPacket>,
     robot_is_busy: Arc<AtomicBool>,
 
     data: CalibrationData,
@@ -59,6 +70,7 @@ pub struct App {
     latest_frame: core::Mat,
 
     action_queque: VecDeque<Action>,
+    action_queue_waiting_for: Instant,
     cube_faces: Vec<[ColorClass; 4]>,
 }
 
@@ -80,10 +92,25 @@ impl App {
     pub fn new(camera_config: CameraConfig) -> Self {
         let robot_is_busy = Arc::new(AtomicBool::new(false));
         let (display_tx, display_rx) = bounded::<core::Mat>(1);
-        let (robot_command_tx, robot_command_rx) = unbounded::<RobotCommand>();
+        let (robot_command_tx, robot_command_rx) = unbounded::<DesktopToEspPacket>();
+
+        let serialport = serialport::new("/dev/ttyACM0", 115_200)
+            .open()
+            .map(Some)
+            .unwrap_or_else(|_e| {
+                log::warn!("{_e}");
+                serialport::new("/dev/ttyACM1", 115_200)
+                    .open()
+                    .inspect_err(|e| log::warn!("{e}"))
+                    .ok()
+            });
+        if serialport.is_none() {
+            log::warn!("No serialport");
+        }
 
         let _cam_worker = camera::camera_worker(camera_config, display_tx);
-        let _robot_worker = robot::robot_worker(robot_command_rx, robot_is_busy.clone());
+        let _robot_worker =
+            robot::robot_worker(serialport, robot_command_rx, robot_is_busy.clone());
 
         Self {
             display_rx,
@@ -94,6 +121,7 @@ impl App {
             currently_calibrating: OptionalCalibratable::None,
             latest_frame: Mat::default(),
             action_queque: Default::default(),
+            action_queue_waiting_for: Instant::now(),
             cube_faces: Default::default(),
             robot_is_busy,
         }
@@ -147,22 +175,20 @@ impl App {
 
 impl eframe::App for App {
     fn on_exit(&mut self) {
-        match self.robot_command_tx.send(RobotCommand::Shutdown) {
+        match self.robot_command_tx.send(DesktopToEspPacket::Shutdown) {
             Ok(_) => (),
             Err(e) => log::error!("Error during shutdown: {e:?}"),
         }
     }
     fn logic(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if !self.robot_is_busy.load(atomic::Ordering::SeqCst)
+        if !self.robot_is_busy.load(SeqCst)
+            && Instant::now() >= self.action_queue_waiting_for
             && let Some(action) = self.action_queque.pop_front()
         {
             match action {
-                Action::Move(m) => {
-                    self.robot_is_busy.store(true, atomic::Ordering::SeqCst);
-                    match self
-                        .robot_command_tx
-                        .send(protocol::DesktopToArduinoPacket::Move(m).into())
-                    {
+                Action::Command(cmd) => {
+                    self.robot_is_busy.store(true, SeqCst);
+                    match self.robot_command_tx.send(cmd) {
                         Ok(_) => {}
                         Err(e) => log::error!("{e:?}"),
                     }
@@ -179,6 +205,7 @@ impl eframe::App for App {
                         self.data.lookup_closest_color(color)
                     }));
                 }
+                Action::Wait(duration) => self.action_queue_waiting_for = Instant::now() + duration,
             }
         }
     }
@@ -236,16 +263,78 @@ impl eframe::App for App {
                     });
                 });
             }
+
             ui.separator();
-            if ui.button("Relax").clicked() {
-                self.action_queque.clear();
-                self.robot_is_busy.store(false, atomic::Ordering::SeqCst);
-                match self
-                    .robot_command_tx
-                    .send(DesktopToArduinoPacket::Operation(protocol::Operation::Relax).into())
-                {
-                    Ok(_) => {}
-                    Err(e) => log::error!("{e:?}"),
+            if ui.button("CAPTURE COLORS").clicked() && self.action_queque.is_empty() {
+                self.cube_faces.clear();
+                self.action_queque
+                    .extend(Action::CAPTURE_FACES.iter().copied());
+            }
+            ui.horizontal(|ui| {
+                if !self.cube_faces.is_empty() {
+                    ui.separator();
+                }
+                for face in &self.cube_faces {
+                    for column in [[face[0], face[1]], [face[2], face[3]]] {
+                        ui.vertical(|ui| {
+                            for class in column {
+                                let [b, g, r] = self.data.get_color(class).0;
+                                let (rect, _) = ui.allocate_exact_size(
+                                    egui::vec2(16.0, 16.0),
+                                    egui::Sense::hover(),
+                                );
+                                ui.painter().rect_filled(
+                                    rect,
+                                    0.0,
+                                    egui::Color32::from_rgb(r, g, b),
+                                );
+                            }
+                        });
+                    }
+                    ui.separator();
+                }
+            });
+
+            if self.cube_faces.len() == 4 {
+                ui.separator();
+                if ui.button("SOLVE :)").clicked() {
+                    let [f0, f1, f2, f3] = [0, 1, 2, 3].map(|i| self.cube_faces[i]);
+                    let c0 = solver_2x2::assembler::Column {
+                        topleft: f2[2].into(),
+                        botleft: f2[3].into(),
+                        topright: f3[0].into(),
+                        botright: f3[1].into(),
+                    };
+                    let c1 = solver_2x2::assembler::Column {
+                        topleft: f1[2].into(),
+                        botleft: f1[3].into(),
+                        topright: f2[0].into(),
+                        botright: f2[1].into(),
+                    };
+                    let c2 = solver_2x2::assembler::Column {
+                        topleft: f0[2].into(),
+                        botleft: f0[3].into(),
+                        topright: f1[0].into(),
+                        botright: f1[1].into(),
+                    };
+                    let c3 = solver_2x2::assembler::Column {
+                        topleft: f3[2].into(),
+                        botleft: f3[3].into(),
+                        topright: f0[0].into(),
+                        botright: f0[1].into(),
+                    };
+                    if let Some(cube) = solver_2x2::assembler::assemble_cube([c0, c1, c2, c3]) {
+                        log::info!("VALID CUBE");
+                        let reader = std::fs::File::open(desktop::solver_config::FILENAME).unwrap();
+                        let table = solver_2x2::solver::Table::load(reader).unwrap();
+                        let moves = solver_2x2::solver::solve(cube, &table).unwrap();
+                        self.action_queque.extend(moves.iter().map(|m| {
+                            Action::Command(desktop::solver_config::map_to_packet(*m).unwrap())
+                        }));
+                        self.action_queque.extend(Action::SHOWCASE_SOLVED);
+                    } else {
+                        log::error!("INVALID CUBE");
+                    }
                 }
             }
         });
@@ -290,11 +379,5 @@ impl eframe::App for App {
                 ui.label("Waiting for video…");
             }
         });
-        ui.separator();
-        if ui.button("CAPTURE COLORS").clicked() && self.action_queque.is_empty() {
-            self.cube_faces.clear();
-            self.action_queque
-                .extend(Action::CAPTURE_FACES.iter().copied());
-        }
     }
 }

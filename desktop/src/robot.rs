@@ -1,45 +1,53 @@
 use crossbeam_channel::{Receiver, TryRecvError};
-use protocol::{DesktopToArduinoPacket, encode_desktop_to_arduino_packet};
+use protocol::{DesktopToEspPacket, encode_desktop_to_esp_packet};
 use std::{
-    sync::{Arc, atomic::AtomicBool},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering::SeqCst},
+    },
     thread,
 };
 
-pub enum RobotCommand {
-    Shutdown,
-    Packet(DesktopToArduinoPacket),
-}
-
-impl From<DesktopToArduinoPacket> for RobotCommand {
-    fn from(value: DesktopToArduinoPacket) -> Self {
-        Self::Packet(value)
-    }
-}
-
 pub fn robot_worker(
-    // port: Box<dyn serialport::SerialPort>,
-    receiver: Receiver<RobotCommand>,
+    mut port: Option<Box<dyn serialport::SerialPort>>,
+    receiver: Receiver<DesktopToEspPacket>,
     busy: Arc<AtomicBool>,
 ) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         loop {
             match receiver.try_recv() {
-                Ok(RobotCommand::Packet(p)) => {
-                    let byte = encode_desktop_to_arduino_packet(p);
+                Ok(p) => {
+                    let byte = encode_desktop_to_esp_packet(p);
+                    if let Some(port) = port.as_mut() {
+                        port.write(&[byte]).unwrap();
+                        port.flush().unwrap();
+                    }
+                    // :/
+                    if p == DesktopToEspPacket::Shutdown {
+                        break;
+                    } else {
+                        busy.store(true, SeqCst);
+                    }
                 }
-                Ok(RobotCommand::Shutdown) => return,
 
                 Err(TryRecvError::Empty) => {}
                 Err(TryRecvError::Disconnected) => {
-                    log::error!("Robot worker receiver disconnected");
+                    log::warn!("Robot worker receiver disconnected");
                     return;
                 }
             }
-            // match port.bytes_to_read() {
-            //     Ok(0) => {}
-            //     Ok(n) => {}
-            //     Err(e) => log::error!("{e:?}"),
-            // }
+            if let Some(port) = port.as_mut() {
+                match port.bytes_to_read() {
+                    Ok(0) => {}
+                    Ok(_) => {
+                        let mut byte = [0];
+                        port.read(&mut byte).unwrap();
+                        log::info!("{}", byte[0]);
+                        busy.store(false, SeqCst);
+                    }
+                    Err(e) => log::error!("{e:?}"),
+                }
+            }
         }
     })
 }

@@ -5,8 +5,6 @@ edition.workspace = true
 
 [features]
 default = []
-alloc = []   # if you ever need Vec/String
 
-[dependencies]
-flat_enum = "0.1.1"
-num_enum = "0.7.6"
+[dependencies] 
+num_enum = { version = "0.7.6", default-features = false }

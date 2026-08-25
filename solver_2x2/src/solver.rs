@@ -19,6 +19,7 @@ impl BfsSolver {
     }
 
     pub fn solve(&mut self, start: Cube, moves: &[Move]) -> Option<Vec<Move>> {
+        let moves = InverseMoveset(moves);
         // Reset only the entries we touch, or just reset the whole thing.
         // For small tests, resetting the whole array is fast enough (88 MB memset).
         self.incoming.fill(u16::MAX);
@@ -40,7 +41,7 @@ impl BfsSolver {
                 break;
             }
             let d = self.depth[c.dense_index() as usize];
-            for (mi, &m) in moves.iter().enumerate() {
+            for (mi, m) in moves.iter().enumerate() {
                 let n = c.applied(m);
                 let ni = n.dense_index() as usize;
                 if self.depth[ni] == u8::MAX {
@@ -60,7 +61,7 @@ impl BfsSolver {
         let mut cur = start;
         while self.incoming[cur.dense_index() as usize] != 0 {
             let mi = self.incoming[cur.dense_index() as usize] as usize - 1;
-            let m = moves[mi];
+            let m = moves.index(mi);
             path.push(m.inverse());
             cur = cur.applied(m.inverse());
         }
@@ -82,6 +83,7 @@ pub struct Table(pub(crate) Vec<u8>);
 
 /// Plain BFS over canonical states, writing into a flat `Vec<u8>`.
 pub fn build_move_table(moveset: &[Move]) -> (Table, bool) {
+    let moveset = InverseMoveset(moveset);
     const UNVISITED: u8 = u8::MAX; // cant be unpacked to valid move
     let mut table = vec![UNVISITED; Cube::STATE_SPACE as usize];
     let mut queue = VecDeque::new();
@@ -93,7 +95,7 @@ pub fn build_move_table(moveset: &[Move]) -> (Table, bool) {
         }
     }
     while let Some(c) = queue.pop_front() {
-        for &m in moveset {
+        for m in moveset.iter() {
             let n = c.applied(m);
             let ni = n.dense_index() as usize;
             if table[ni] == UNVISITED {
@@ -115,5 +117,15 @@ impl Table {
 
     pub fn save(self: &Table, mut w: impl Write) -> std::io::Result<()> {
         w.write_all(&self.0)
+    }
+}
+
+struct InverseMoveset<'a>(&'a [Move]);
+impl<'a> InverseMoveset<'a> {
+    fn index(&self, index: usize) -> Move {
+        self.0[index].inverse()
+    }
+    fn iter(&self) -> impl Iterator<Item = Move> {
+        self.0.iter().copied().map(Move::inverse)
     }
 }

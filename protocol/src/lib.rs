@@ -1,27 +1,33 @@
 #![no_std]
 
-mod arduino_to_desktop;
-mod desktop_to_arduino;
-
-pub use arduino_to_desktop::Packet as ArduinoToDesktopPacket;
-pub use desktop_to_arduino::{Move, Operation, Packet as DesktopToArduinoPacket};
-
-use flat_enum::IntoFlat;
-
-pub fn encode_desktop_to_arduino_packet(p: DesktopToArduinoPacket) -> u8 {
-    p.into_flat() as u8
+#[derive(num_enum::TryFromPrimitive, Debug, Clone, Copy, PartialEq)]
+#[repr(u8)]
+pub enum EspToDesktopPacket {
+    Success,
+    Failed,
 }
-pub fn decode_desktop_to_arduino_packet(byte: u8) -> Option<DesktopToArduinoPacket> {
-    desktop_to_arduino::_FlattenedPacket::try_from(byte)
-        .ok()
-        .map(DesktopToArduinoPacket::from_flat)
+#[derive(num_enum::TryFromPrimitive, Debug, Clone, Copy, PartialEq)]
+#[repr(u8)]
+pub enum DesktopToEspPacket {
+    Z,
+    Y,
+    Y_,
+    D,
+    D_,
+    Relax,
+    Shutdown,
 }
 
-pub fn encode_arduino_to_desktop_packet(p: ArduinoToDesktopPacket) -> u8 {
-    p.into_flat() as u8
+pub fn encode_desktop_to_esp_packet(p: DesktopToEspPacket) -> u8 {
+    p as u8
 }
-pub fn decode_arduino_to_desktop_packet(byte: u8) -> Option<ArduinoToDesktopPacket> {
-    arduino_to_desktop::_FlattenedPacket::try_from(byte)
-        .ok()
-        .map(ArduinoToDesktopPacket::from_flat)
+pub fn decode_desktop_to_esp_packet(byte: u8) -> Option<DesktopToEspPacket> {
+    DesktopToEspPacket::try_from(byte).ok()
+}
+
+pub fn encode_esp_to_desktop_packet(p: EspToDesktopPacket) -> u8 {
+    p as u8
+}
+pub fn decode_esp_to_desktop_packet(byte: u8) -> Option<EspToDesktopPacket> {
+    EspToDesktopPacket::try_from(byte).ok()
 }

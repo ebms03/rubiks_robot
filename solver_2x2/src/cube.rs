@@ -81,6 +81,26 @@ impl Move {
         Self::Rotation(Rotation::ALL[5]),
     ];
 
+    pub const U: Self = Self::Twist(Twist(Layer::Top, Direction::CW));
+    pub const U_: Self = Self::Twist(Twist(Layer::Top, Direction::CCW));
+    pub const D: Self = Self::Twist(Twist(Layer::Bottom, Direction::CW));
+    pub const D_: Self = Self::Twist(Twist(Layer::Bottom, Direction::CCW));
+    pub const F: Self = Self::Twist(Twist(Layer::Front, Direction::CW));
+    pub const F_: Self = Self::Twist(Twist(Layer::Front, Direction::CCW));
+    pub const B: Self = Self::Twist(Twist(Layer::Back, Direction::CW));
+    pub const B_: Self = Self::Twist(Twist(Layer::Back, Direction::CCW));
+    pub const L: Self = Self::Twist(Twist(Layer::Left, Direction::CW));
+    pub const L_: Self = Self::Twist(Twist(Layer::Left, Direction::CCW));
+    pub const R: Self = Self::Twist(Twist(Layer::Right, Direction::CW));
+    pub const R__: Self = Self::Twist(Twist(Layer::Right, Direction::CCW));
+
+    pub const X: Self = Self::Rotation(Rotation(Axis::X, Direction::CW));
+    pub const X_: Self = Self::Rotation(Rotation(Axis::X, Direction::CCW));
+    pub const Y: Self = Self::Rotation(Rotation(Axis::Y, Direction::CW));
+    pub const Y_: Self = Self::Rotation(Rotation(Axis::Y, Direction::CCW));
+    pub const Z: Self = Self::Rotation(Rotation(Axis::Z, Direction::CW));
+    pub const Z_: Self = Self::Rotation(Rotation(Axis::Z, Direction::CCW));
+
     pub fn dir(self) -> Direction {
         match self {
             Move::Twist(twist) => twist.1,
