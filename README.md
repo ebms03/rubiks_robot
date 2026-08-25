@@ -1,3 +1,3 @@
 ## 2x2 Rubik's cube solver
 
-<video src="solve.mp4" width="1690" height="704" controls></video>
+https://github.com/user-attachments/assets/3e0ed94f-3a5d-49c5-ab21-0777ed654635
