@@ -13,9 +13,7 @@ pub enum DesktopToEspPacket {
     Y,
     Y_,
     D,
-    D_,
-    Relax,
-    Shutdown,
+    D_, 
 }
 
 pub fn encode_desktop_to_esp_packet(p: DesktopToEspPacket) -> u8 {

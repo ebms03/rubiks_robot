@@ -2,7 +2,7 @@ use std::{
     collections::VecDeque,
     sync::{
         Arc,
-        atomic::{self, AtomicBool, Ordering::SeqCst},
+        atomic::{AtomicBool, Ordering::SeqCst},
     },
     time::{Duration, Instant},
 };
@@ -11,13 +11,12 @@ use crossbeam_channel::{Receiver, Sender, bounded, unbounded};
 use eframe::egui;
 use opencv::{core, imgproc, prelude::*};
 use protocol::DesktopToEspPacket;
-use solver_2x2::cube::{self, Axis, Direction, Layer, Rotation, Twist};
 use strum::IntoEnumIterator;
 
 use crate::{
     calibration::{CalibrationData, ColorClass, Location},
     camera::{self, CameraConfig},
-    robot::{self},
+    robot::{self, RobotCommand},
 };
 
 const CALIBRATION_PATH: &str = "calibration.json";
@@ -62,7 +61,7 @@ pub struct App {
     texture: Option<egui::TextureHandle>,
     img_size: egui::Vec2,
 
-    robot_command_tx: Sender<DesktopToEspPacket>,
+    robot_command_tx: Sender<RobotCommand>,
     robot_is_busy: Arc<AtomicBool>,
 
     data: CalibrationData,
@@ -92,7 +91,7 @@ impl App {
     pub fn new(camera_config: CameraConfig) -> Self {
         let robot_is_busy = Arc::new(AtomicBool::new(false));
         let (display_tx, display_rx) = bounded::<core::Mat>(1);
-        let (robot_command_tx, robot_command_rx) = unbounded::<DesktopToEspPacket>();
+        let (robot_command_tx, robot_command_rx) = unbounded::<RobotCommand>();
 
         let serialport = serialport::new("/dev/ttyACM0", 115_200)
             .open()
@@ -175,7 +174,7 @@ impl App {
 
 impl eframe::App for App {
     fn on_exit(&mut self) {
-        match self.robot_command_tx.send(DesktopToEspPacket::Shutdown) {
+        match self.robot_command_tx.send(RobotCommand::Shutdown) {
             Ok(_) => (),
             Err(e) => log::error!("Error during shutdown: {e:?}"),
         }
@@ -188,7 +187,7 @@ impl eframe::App for App {
             match action {
                 Action::Command(cmd) => {
                     self.robot_is_busy.store(true, SeqCst);
-                    match self.robot_command_tx.send(cmd) {
+                    match self.robot_command_tx.send(RobotCommand::Esp(cmd)) {
                         Ok(_) => {}
                         Err(e) => log::error!("{e:?}"),
                     }

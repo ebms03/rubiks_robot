@@ -8,27 +8,30 @@ use std::{
     thread,
 };
 
+pub enum RobotCommand {
+    Esp(DesktopToEspPacket),
+    Shutdown,
+}
+
 pub fn robot_worker(
     mut port: Option<Box<dyn serialport::SerialPort>>,
-    receiver: Receiver<DesktopToEspPacket>,
+    receiver: Receiver<RobotCommand>,
     busy: Arc<AtomicBool>,
 ) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         loop {
             match receiver.try_recv() {
-                Ok(p) => {
-                    let byte = encode_desktop_to_esp_packet(p);
-                    if let Some(port) = port.as_mut() {
-                        port.write(&[byte]).unwrap();
-                        port.flush().unwrap();
-                    }
-                    // :/
-                    if p == DesktopToEspPacket::Shutdown {
-                        break;
-                    } else {
+                Ok(cmd) => match cmd {
+                    RobotCommand::Esp(p) => {
+                        let byte = encode_desktop_to_esp_packet(p);
+                        if let Some(port) = port.as_mut() {
+                            port.write(&[byte]).unwrap();
+                            port.flush().unwrap();
+                        }
                         busy.store(true, SeqCst);
                     }
-                }
+                    RobotCommand::Shutdown => break,
+                },
 
                 Err(TryRecvError::Empty) => {}
                 Err(TryRecvError::Disconnected) => {
