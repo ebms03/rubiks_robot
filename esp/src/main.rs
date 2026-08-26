@@ -86,7 +86,6 @@ fn main() -> ! {
             let packet = match success {
                 CommandResult::Success => Some(protocol::EspToDesktopPacket::Success),
                 CommandResult::Failed => Some(protocol::EspToDesktopPacket::Failed),
-                CommandResult::Shutdown => None,
             };
             if let Some(packet) = packet {
                 uart.write(&[protocol::encode_esp_to_desktop_packet(packet)])
@@ -100,7 +99,6 @@ fn main() -> ! {
 enum CommandResult {
     Success,
     Failed,
-    Shutdown,
 }
 
 fn handle_command<S, D, E>(
@@ -130,8 +128,6 @@ where
         protocol::DesktopToEspPacket::Y_ => move_y_(twister, delay),
         protocol::DesktopToEspPacket::D => move_d(twister, pusher, delay),
         protocol::DesktopToEspPacket::D_ => move_d_(twister, pusher, delay),
-        protocol::DesktopToEspPacket::Relax => move_relax(twister, flipper, pusher, delay),
-        protocol::DesktopToEspPacket::Shutdown => return CommandResult::Shutdown,
     }
     return CommandResult::Success;
 }
